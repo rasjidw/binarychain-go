@@ -141,6 +141,10 @@ type EndOfChainMarker struct{}
 
 func (eoc *EndOfChainMarker) isBinaryChainItem() {}
 
+func (eoc *EndOfChainMarker) String() string {
+	return "<EndOfChainMarker>"
+}
+
 // bc prefix
 type BinaryChainPrefix struct {
 	Prefix string
@@ -148,12 +152,33 @@ type BinaryChainPrefix struct {
 
 func (prefix *BinaryChainPrefix) isBinaryChainItem() {}
 
+func (prefix *BinaryChainPrefix) String() string {
+	var txt string
+	if len(prefix.Prefix) < 100 {
+		txt = prefix.Prefix
+	} else {
+		txt := prefix.Prefix[:100]
+		txt += "..."
+	}
+	return fmt.Sprintf("<BCPrefix: %v>", txt)
+}
+
 // bc part
 type BinaryChainPart struct {
 	Part []byte
 }
 
 func (part *BinaryChainPart) isBinaryChainItem() {}
+
+func (part *BinaryChainPart) String() string {
+	var txt string
+	if len(part.Part) < 30 {
+		txt = fmt.Sprintf("0x%x", part.Part)
+	} else {
+		txt = fmt.Sprintf("0x%x ...", part.Part[:30])
+	}
+	return fmt.Sprintf("<BCPart: %v>", txt)
+}
 
 // parse error
 type ParseError struct {
