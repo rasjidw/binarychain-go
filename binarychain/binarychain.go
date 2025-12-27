@@ -296,10 +296,10 @@ func (scr *streamingChainReader) GetNextItem() itemResult {
 }
 
 func (scr *streamingChainReader) getNextPart() itemResult {
-	// FIXME: Tagged switch?
-	if scr.state == IN_PREFIX {
+	switch scr.state {
+	case IN_PREFIX:
 		return scr.getPrefix()
-	} else if scr.state == IN_PART_LENGTH {
+	case IN_PART_LENGTH:
 		err := scr.readPartLength() // may change the state
 		if err != nil {
 			return itemResult{ItemErr: err}
@@ -309,9 +309,9 @@ func (scr *streamingChainReader) getNextPart() itemResult {
 		} else {
 			return itemResult{}
 		}
-	} else if scr.state == IN_BINARY_PART {
+	case IN_BINARY_PART:
 		return scr.getBinaryPart()
-	} else {
+	default:
 		return itemResult{ItemErr: errors.New("Invalid state!")}
 	}
 }
