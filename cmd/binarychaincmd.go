@@ -18,6 +18,17 @@ func main() {
 	bc_data := bc.Serialise()
 	fmt.Printf("Data as bytes (hex): % X\n", *bc_data)
 
+	scr := binarychain.NewStreamingChainReader()
+	for item := range scr.GetChainParts(*bc_data) {
+		if item.ItemErr != nil {
+			fmt.Printf("Got Error: %v\n", item.ItemErr)
+		} else {
+			fmt.Printf("Got: %v\n", item.Result)
+		}
+	}
+
+	fmt.Print("---------------------\n")
+
 	new_prefix := "AAA"
 	bc.SetPrefix(&new_prefix)
 	parts = []([]byte){[]byte{0x11, 0x22}}
@@ -26,7 +37,7 @@ func main() {
 	bc_data = bc.Serialise()
 	fmt.Printf("Data as bytes (hex): % X\n", *bc_data)
 
-	scr := binarychain.NewStreamingChainReader()
+	scr = binarychain.NewStreamingChainReader()
 	scr.AddData(*bc_data)
 
 	for {
