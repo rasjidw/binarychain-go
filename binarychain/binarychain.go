@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"iter"
 	"math"
 	"slices"
 	"unicode"
@@ -414,4 +415,26 @@ func (scr *streamingChainReader) getBinaryPart() itemResult {
 		return itemResult{gotResult: true, Result: &BinaryChainPart{binary_part}, atEndOfChain: atEnd}
 	}
 	return itemResult{}
+}
+
+func (scr *streamingChainReader) GetChainParts(newData []byte) iter.Seq[itemResult] {
+	return func(yield func(itemResult) bool) {
+		err := scr.AddData(newData)
+		if err != nil {
+			itemResult := itemResult{ItemErr: err}
+			if !yield(itemResult) {
+				return
+			}
+		} else {
+			for {
+				itemResult := scr.GetNextItem()
+				if itemResult.Result == nil && itemResult.ItemErr == nil {
+					return
+				}
+				if !yield(itemResult) {
+					return
+				}
+			}
+		}
+	}
 }
