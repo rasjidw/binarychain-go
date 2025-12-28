@@ -60,7 +60,7 @@ type BinaryChain interface {
 
 type binaryChain struct {
 	prefix *string
-	Parts  *[][]byte
+	Parts  *[]([]byte)
 }
 
 func (bc *binaryChain) SetPrefix(prefix *string) error {
@@ -190,7 +190,70 @@ func (pe *ParseError) Error() string {
 	return fmt.Sprintf("Parse Error: %s", pe.message)
 }
 
-func (pe *ParseError) isBinaryChainItem() {}
+// func (pe *ParseError) isBinaryChainItem() {}
+
+// ---- base struct for both streaming and non-streaming readers
+
+type chainReaderConf struct {
+	maxPrefixSize  int
+	maxPartSize    int
+	maxChainSize   int // total size of the chain (includig / excluding? length bytes?)
+	maxChainLength int
+}
+
+func (crc *chainReaderConf) SetMaxPrefixSize(maxPrefixSize int) error {
+	if maxPrefixSize < 0 {
+		return errors.New("maxPrefixSize must be greater or equal to 0")
+	}
+	crc.maxPrefixSize = maxPrefixSize
+	return nil
+}
+
+func (crc *chainReaderConf) MaxPrefixSize() int {
+	return crc.maxPrefixSize
+}
+
+func (crc *chainReaderConf) SetMaxPartSize(maxPartSize int) error {
+	if maxPartSize <= 0 {
+		return errors.New("maxPartSize must be greater than 0")
+	}
+	crc.maxPartSize = maxPartSize
+	return nil
+}
+
+func (crc *chainReaderConf) MaxPartSize() int {
+	return crc.maxPartSize
+}
+
+func (crc *chainReaderConf) SetMaxChainSize(maxChainSize int) error {
+	if maxChainSize <= 0 {
+		return errors.New("maxChainSize must be greater than 0")
+	}
+	crc.maxChainSize = maxChainSize
+	return nil
+}
+
+func (crc *chainReaderConf) MaxChainSize() int {
+	return crc.maxChainSize
+}
+
+func (crc *chainReaderConf) SetMaxChainLength(maxChainLength int) error {
+	if maxChainLength <= 0 {
+		return errors.New("maxChainLength must be greater than 0")
+	}
+	crc.maxChainLength = maxChainLength
+	return nil
+}
+
+func (crc *chainReaderConf) MaxChainLength() int {
+	return crc.maxChainLength
+}
+
+// -----------------------------------------
+
+const DEFAULT_MAX_PREFIX = 256
+
+// ---- streaming reader
 
 // parsing state for streaming reader
 type ParsingState int
@@ -212,11 +275,7 @@ func (ps ParsingState) String() string {
 }
 
 type streamingChainReader struct {
-	maxPrefixSize  int
-	maxPartSize    int
-	maxChainSize   int // total size of the chain (includig / excluding? length bytes?)
-	maxChainLength int
-
+	Conf             *chainReaderConf
 	state            ParsingState
 	buffer           []byte
 	curPrefixOffset  int
@@ -227,63 +286,24 @@ type streamingChainReader struct {
 	returnAtEnd      bool
 }
 
-const DEFAULT_MAX_PREFIX = 256
+func (scr *streamingChainReader) init() {
+	scr.partLengthSize = -1
+	scr.binaryPartLength = -1
+	scr.chainLength = -1
+}
 
 func NewStreamingChainReader() *streamingChainReader {
-	scr := streamingChainReader{maxPrefixSize: DEFAULT_MAX_PREFIX, maxPartSize: math.MaxInt, maxChainSize: math.MaxInt, maxChainLength: math.MaxInt,
-		partLengthSize: -1, binaryPartLength: -1, chainLength: -1}
+	crc := chainReaderConf{maxPrefixSize: DEFAULT_MAX_PREFIX, maxPartSize: math.MaxInt, maxChainSize: math.MaxInt, maxChainLength: math.MaxInt}
+	scr := streamingChainReader{Conf: &crc}
+	scr.init()
 	return &scr
-}
-
-func (scr *streamingChainReader) SetMaxPrefixSize(maxPrefixSize int) error {
-	if maxPrefixSize < 0 {
-		return errors.New("maxPrefixSize must be greater or equal to 0")
-	}
-	return nil
-}
-
-func (scr *streamingChainReader) MaxPrefixSize() int {
-	return scr.maxPrefixSize
-}
-
-func (scr *streamingChainReader) SetMaxPartSize(maxPartSize int) error {
-	if maxPartSize <= 0 {
-		return errors.New("maxPartSize must be greater than 0")
-	}
-	return nil
-}
-
-func (scr *streamingChainReader) MaxPartSize() int {
-	return scr.maxPartSize
-}
-
-func (scr *streamingChainReader) SetMaxChainSize(maxChainSize int) error {
-	if maxChainSize <= 0 {
-		return errors.New("maxChainSize must be greater than 0")
-	}
-	return nil
-}
-
-func (scr *streamingChainReader) MaxChainSize() int {
-	return scr.maxChainSize
-}
-
-func (scr *streamingChainReader) SetMaxChainLength(maxChainLength int) error {
-	if maxChainLength <= 0 {
-		return errors.New("maxChainLength must be greater than 0")
-	}
-	return nil
-}
-
-func (scr *streamingChainReader) MaxChainLength() int {
-	return scr.maxChainLength
 }
 
 func (scr *streamingChainReader) AddData(newData []byte) error {
 	if len(newData) == 0 {
 		return errors.New("Must add at least one byte")
 	}
-	if scr.chainSize+len(newData) > scr.maxChainSize {
+	if scr.chainSize+len(newData) > scr.Conf.maxChainSize {
 		return errors.New("Chain too large")
 	}
 	// scr.buffer = append(scr.buffer, newData...)
@@ -309,7 +329,7 @@ func (scr *streamingChainReader) GetNextItem() itemResult {
 		return partResult
 	}
 	scr.chainLength += 1
-	if scr.maxChainLength >= 0 && scr.chainLength >= scr.maxChainLength && !partResult.atEndOfChain {
+	if scr.Conf.maxChainLength >= 0 && scr.chainLength >= scr.Conf.maxChainLength && !partResult.atEndOfChain {
 		// already at the max length, so if not at end of the chain, raise an error
 		return itemResult{ItemErr: &ParseError{"chain too long"}}
 	}
@@ -389,7 +409,7 @@ func (scr *streamingChainReader) readPartLength() error {
 		scr.buffer = scr.buffer[scr.partLengthSize:]
 		scr.state = IN_BINARY_PART
 		scr.binaryPartLength = int(binary.BigEndian.Uint64(paddedPartLength))
-		if scr.binaryPartLength > scr.maxPartSize {
+		if scr.binaryPartLength > scr.Conf.maxPartSize {
 			return &ParseError{"Part length too long"}
 		}
 	}
@@ -434,6 +454,68 @@ func (scr *streamingChainReader) GetChainParts(newData []byte) iter.Seq[itemResu
 				if !yield(itemResult) {
 					return
 				}
+			}
+		}
+	}
+}
+
+// --- non-streaming chain reader
+
+type readerResult struct {
+	BinChain  *binaryChain
+	ErrResult *error
+}
+
+type chainReader struct {
+	Conf *chainReaderConf
+	scr  *streamingChainReader
+	bc   *binaryChain
+}
+
+func NewChainReader() *chainReader {
+	crc := chainReaderConf{maxPrefixSize: DEFAULT_MAX_PREFIX, maxPartSize: math.MaxInt, maxChainSize: math.MaxInt,
+		maxChainLength: math.MaxInt}
+	scr := streamingChainReader{Conf: &crc}
+	scr.init()
+	prefix := ""
+	empty_parts := []([]byte){}
+	bc, err := NewBinaryChain(&prefix, &empty_parts)
+	if err != nil {
+		panic("This should not happen")
+	}
+	cr := chainReader{Conf: &crc, scr: &scr, bc: bc}
+	return &cr
+}
+
+func (cr *chainReader) GetBinaryChains(newData []byte) iter.Seq[readerResult] {
+	return func(yield func(readerResult) bool) {
+		for item := range cr.scr.GetChainParts(newData) {
+			if item.ItemErr != nil {
+				errResult := readerResult{ErrResult: &item.ItemErr}
+				yield(errResult)
+				return
+			}
+
+			switch v := item.Result.(type) {
+			case *BinaryChainPrefix:
+				// fmt.Printf("Got Prefix: %v\n", v)
+				cr.bc.prefix = &v.Prefix
+			case *BinaryChainPart:
+				// fmt.Printf("Got Binary Part: %v\n", v)
+				newParts := *cr.bc.Parts
+				newParts = append(newParts, v.Part)
+				cr.bc.Parts = &newParts
+			case *EndOfChainMarker:
+				// fmt.Printf("Got EOC Marker: %v\n", v)
+				bc_result := readerResult{BinChain: cr.bc}
+				if !yield(bc_result) {
+					return
+				}
+				new_bc := binaryChain{}
+				cr.bc = &new_bc
+			default:
+				// should never get here
+				fmt.Printf("Default case: Got %v\n", v)
 			}
 		}
 	}
