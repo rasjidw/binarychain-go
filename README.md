@@ -1,4 +1,4 @@
-# Go Implementation of Binary Chains
+# Go implementation of Binary Chains
 
 This is a Go implementation of [Binary Chains](https://github.com/rasjidw/binarychain).
 
