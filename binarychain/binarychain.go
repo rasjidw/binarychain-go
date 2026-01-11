@@ -54,16 +54,12 @@ func createPartLength(part *[]byte) []byte {
 	return fullbuf[:j]
 }
 
-type BinaryChain interface {
-	Serialise() []byte
-}
-
-type binaryChain struct {
+type BinaryChain struct {
 	prefix *string
 	Parts  *[]([]byte)
 }
 
-func (bc *binaryChain) SetPrefix(prefix *string) error {
+func (bc *BinaryChain) SetPrefix(prefix *string) error {
 	if isASCII(prefix) {
 		bc.prefix = prefix
 		return nil
@@ -72,11 +68,11 @@ func (bc *binaryChain) SetPrefix(prefix *string) error {
 	}
 }
 
-func (bc *binaryChain) GetPrefix() *string {
+func (bc *BinaryChain) GetPrefix() *string {
 	return bc.prefix
 }
 
-func (bc *binaryChain) Serialise() *[]byte {
+func (bc *BinaryChain) Serialise() *[]byte {
 	result := []byte(*bc.prefix)
 
 	for i := 0; i < len(*bc.Parts); i++ {
@@ -87,15 +83,15 @@ func (bc *binaryChain) Serialise() *[]byte {
 	return &result
 }
 
-func NewBinaryChain(prefix *string, parts *[][]byte) (*binaryChain, error) {
+func NewBinaryChain(prefix *string, parts *[][]byte) (*BinaryChain, error) {
 	if !isASCII(prefix) {
 		return nil, errors.New("Prefix must be an ASCII string")
 	} else {
-		return &binaryChain{prefix, parts}, nil
+		return &BinaryChain{prefix, parts}, nil
 	}
 }
 
-func (bc *binaryChain) String() string {
+func (bc *BinaryChain) String() string {
 	var body string
 	if len(*bc.prefix) > 100 {
 		// the prefix is ascii, so just taking a slice is fine.
@@ -462,14 +458,14 @@ func (scr *streamingChainReader) GetChainParts(newData []byte) iter.Seq[itemResu
 // --- non-streaming chain reader
 
 type readerResult struct {
-	BinChain  *binaryChain
+	BinChain  *BinaryChain
 	ErrResult *error
 }
 
 type chainReader struct {
 	Conf *chainReaderConf
 	scr  *streamingChainReader
-	bc   *binaryChain
+	bc   *BinaryChain
 }
 
 func NewChainReader() *chainReader {
@@ -511,7 +507,7 @@ func (cr *chainReader) GetBinaryChains(newData []byte) iter.Seq[readerResult] {
 				if !yield(bc_result) {
 					return
 				}
-				new_bc := binaryChain{}
+				new_bc := BinaryChain{}
 				cr.bc = &new_bc
 			default:
 				// should never get here
