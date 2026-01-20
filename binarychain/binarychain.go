@@ -507,8 +507,13 @@ func (cr *chainReader) GetBinaryChains(newData []byte) iter.Seq[readerResult] {
 				if !yield(bc_result) {
 					return
 				}
-				new_bc := BinaryChain{}
-				cr.bc = &new_bc
+				prefix := ""
+				empty_parts := []([]byte){}
+				new_bc, err := NewBinaryChain(&prefix, &empty_parts)
+				if err != nil {
+					panic("This should not happen")
+				}
+				cr.bc = new_bc
 			default:
 				// should never get here
 				fmt.Printf("Default case: Got %v\n", v)
